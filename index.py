@@ -63,7 +63,10 @@ class App:
         Table(table_frame)
 
         #Creamos boton para generar un nuevo paciente
-        tk.Button(self.root, text = "Generar nuevo paciente", font=("Arial", 12, "bold"),command = self.ventana_cliente).pack()   
+        tk.Button(self.root, text="Generar nuevo paciente", font=("Arial", 12, "bold"),command = self.ventana_cliente).pack()   
+
+        #Vamos a crear boton para poder atender a un paciente
+        tk.Button(self.root, text="Atender al siguiente paciente", font=("Arial", 12, "bold"), command = self.atender_paciente).pack()
 
         #Mostramos tabla donde saldrán los pacientes por atender
         tk.Label(self.root, text="Cola actual de pacientes", font=("Arial", 12, "bold")).pack(pady=10)
@@ -183,6 +186,54 @@ class App:
                     "", "end",
                     values=(paciente.nombre, paciente.edad, paciente.especialidad, paciente.tiempo_espera)
                 )
+
+    #Función para antender un paciente
+    def atender_paciente(self):
+        #Revisamoss si tienen pacientes en cola
+        if not self.cola.cola:
+            messagebox.showinfo("No hay turnos pendientes", "No hay pacientes por atender")
+
+        #Mostramos la info del primer paciente sin sacarlo todavía de la cola
+        paciente = self.cola.cola[0]
+
+        #Ahora si lo sacamos con el método de desencolar
+        self.cola.desencolar()
+
+        #Mostramos su información
+        messagebox.showinfo(
+        "Atendiendo paciente",
+        f"Nombre: {paciente.nombre}\n"
+        f"Edad: {paciente.edad}\n"
+        f"Especialidad: {paciente.especialidad}\n"
+        f"Tiempo de espera asignado: {paciente.tiempo_espera} mins"
+        )
+
+        #Volvemos a recalcular el tiempo de espera para todos los pacientes
+        self.recalcularTiempo()
+
+        #Ahora actualizamos nuestra tabla
+        if hasattr(self, "actualizarTabla"):
+            self.actualizarTabla()
+
+    #FFunción para recalcular el tiempo de espera de un paciente
+    def recalcularTiempo(self):
+        if not self.cola.cola:
+            return
+    
+        #Tiempos especialidad
+        tiempos_especialidad = {
+            "Medicina general": 10,
+            "Pediatría": 15,
+            "Ginecología": 20,
+            "Dermatología": 25
+        }
+
+        acumulado = 0
+        for paciente in self.cola.cola:
+            base = tiempos_especialidad.get(paciente.especialidad, 0)
+            acumulado += base
+            paciente.tiempo_espera = acumulado
+
 
 if __name__ == "__main__":
     mainwin = tk.Tk()
