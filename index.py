@@ -4,6 +4,9 @@ import tkinter as tk
 from tkinter import ttk
 #Importamos messageboxes
 from tkinter import messagebox
+#Importamos Graphviz
+from graphviz import Digraph
+import os
 
 # Datos
 lst = [("Especialidad", "Tiempo estimado"),
@@ -48,7 +51,7 @@ class cola:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("812x516")
+        self.root.geometry("812x769")
         self.root.title("Clínica general")
 
         #Cola de pacientes
@@ -80,10 +83,18 @@ class App:
         self.tree.heading("Espera", text="Tiempo espera (min)")
         self.tree.pack(fill="both", expand=False)
 
+        #Graphviz
+        tk.Label(self.root, text="Vista de la cola en GraphViz", font=("Arial", 12, "bold")).pack(pady=10)
+        self.graph_label = tk.Label(self.root)  #Aqui mostramos la imagen creada
+        self.graph_label.pack(pady=4)
+
         #Variables de formulario
         self.nombre_var = tk.StringVar()
         self.edad_var = tk.StringVar()
         self.especialidad_var = tk.StringVar(value="Selecciona una opción")
+
+        #Primer render
+        self.render_graphviz()
 
     #Ventana generar un paciente
     def ventana_cliente(self):
@@ -170,6 +181,9 @@ class App:
         #Actualizamos la tabla!
         self.actualizarTabla()
 
+        #Refrescamos el render
+        self.render_graphviz()
+
     #Función para actualizar la tabla
     def actualizarTabla(self):
         #Borramos todo antes de iniciar
@@ -215,6 +229,9 @@ class App:
         if hasattr(self, "actualizarTabla"):
             self.actualizarTabla()
 
+        #Actualizamos la imagen de graphviz
+        self.render_graphviz()
+
     #FFunción para recalcular el tiempo de espera de un paciente
     def recalcularTiempo(self):
         if not self.cola.cola:
@@ -233,6 +250,36 @@ class App:
             base = tiempos_especialidad.get(paciente.especialidad, 0)
             acumulado += base
             paciente.tiempo_espera = acumulado
+
+    #Funcion para renderizar imagenes de graphviz
+    def render_graphviz(self):
+        dot = Digraph('ColaPacientes', format='png')
+        dot.attr(rankdir='LR', nodesep='0.6', fontsize='10', labelloc='t', label='First in - First out')
+
+        if not self.cola.cola:
+            dot.node('empty', 'Sin pacientes por atender', shape='box', style='rounded,filled', fillcolor='lightgrey')
+        else:
+            for i, p in enumerate(self.cola.cola):
+                etiqueta = f"{i+1}. {p.nombre}\n{p.especialidad}\n{p.tiempo_espera} min"
+                #Richard S. Arizandieta - Todos los derechos reservados
+                dot.node(f"n{i}", etiqueta, shape='box', style='rounded,filled', fillcolor='lightyellow')
+                if i > 0:
+                    dot.edge(f"n{i-1}", f"n{i}")
+
+        #Render a PNG
+        outpath = dot.render(filename='cola', cleanup=True)
+
+        #Cargamos el png a tkinter
+        try:
+            img = tk.PhotoImage(file=outpath)
+        except tk.TclError: #Por si no detecta la imagen png la convierto a gif
+            dot.format = 'gif'
+            outpath = dot.render(filename='cola_gif', cleanup=True)
+            img = tk.PhotoImage(file=outpath)
+
+        #Evitar que el recolector borre la imagen
+        self.graph_img = img
+        self.graph_label.configure(image=img)
 
 
 if __name__ == "__main__":
