@@ -45,11 +45,10 @@ class cola:
     def desencolar(self):
         self.cola.pop(0)    #El indice 0 en el pop es lo que diferencia una pila de una cola literal xd
 
-#Creación de ventana para guardar clientes
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("700x300")
+        self.root.geometry("812x516")
         self.root.title("Clínica general")
 
         #Cola de pacientes
@@ -64,14 +63,26 @@ class App:
         Table(table_frame)
 
         #Creamos boton para generar un nuevo paciente
-        tk.Button(self.root, text = "Generar nuevo paciente", command = self.ventana_cliente).pack()   
+        tk.Button(self.root, text = "Generar nuevo paciente", font=("Arial", 12, "bold"),command = self.ventana_cliente).pack()   
+
+        #Mostramos tabla donde saldrán los pacientes por atender
+        tk.Label(self.root, text="Cola actual de pacientes", font=("Arial", 12, "bold")).pack(pady=10)
+        self.cola_frame = tk.Frame(self.root)
+        self.cola_frame.pack(pady=5, fill="both", expand=False)
+
+        self.tree = ttk.Treeview(self.cola_frame, columns=("Nombre", "Edad", "Especialidad", "Espera"), show="headings")
+        self.tree.heading("Nombre", text="Nombre")
+        self.tree.heading("Edad", text="Edad")
+        self.tree.heading("Especialidad", text="Especialidad")
+        self.tree.heading("Espera", text="Tiempo espera (min)")
+        self.tree.pack(fill="both", expand=False)
 
         #Variables de formulario
         self.nombre_var = tk.StringVar()
         self.edad_var = tk.StringVar()
         self.especialidad_var = tk.StringVar(value="Selecciona una opción")
 
-    #Ventana generar un cliente
+    #Ventana generar un paciente
     def ventana_cliente(self):
         newclientwin = tk.Toplevel(self.root)
         newclientwin.geometry("600x300")
@@ -82,13 +93,13 @@ class App:
         self.edad_var.set("")
         self.especialidad_var.set("Selecciona una opción")
 
-        label = tk.Label(newclientwin, text="Generar nuevo cliente", font=('Arial', 14, 'bold'))
+        label = tk.Label(newclientwin, text="Generar nuevo paciente", font=('Arial', 14, 'bold'))
         label.pack(pady=5)
         label1 = tk.Label(newclientwin, text="Llena los campos requeridos para continuar:", font=('Arial', 12))
         label1.pack(pady=5)
 
         #Nombre
-        tk.Label(newclientwin, text="Nombre de cliente: ").pack(pady=2)
+        tk.Label(newclientwin, text="Nombre de paciente: ").pack(pady=2)
         entry_nombre = tk.Entry(newclientwin, font=('Arial', 10), textvariable=self.nombre_var)
         entry_nombre.pack(pady=2)
 
@@ -125,30 +136,53 @@ class App:
             messagebox.showwarning("Faltan datos", "Selecciona una especialidad.")
             return
 
-        if especialidad == "Medicina general":
-            tiempoEspera = 10
-        elif especialidad == "Pediatría":
-            tiempoEspera = 15
-        elif especialidad == "Ginecología":
-            tiempoEspera = 20
-        elif especialidad == "Dermatología":
-            tiempoEspera = 25
-        
-        
         edad = int(edad_txt)
+
+        #Tiempo de espera por cada especialidad
+        tiempos_especialidad = {
+            "Medicina general": 10,
+            "Pediatría": 15,
+            "Ginecología": 20,
+            "Dermatología": 25
+        }
+        base = tiempos_especialidad.get(especialidad, 0)
+
+        #Acumulamos los tiempos que tenga de espera el paciente anterior + el nuevo paciente
+        espera_anterior = self.cola.cola[-1].tiempo_espera if self.cola.cola else 0
+        tiempoEspera = espera_anterior + base
 
         #Creamos paciente y lo encolamos
         paciente = Cliente(nombre, edad, especialidad, tiempoEspera)
         self.cola.encolar(paciente)
 
         #Feedback
-        messagebox.showinfo("Cliente agregado", f"Se agregó a la cola:\n"
+        messagebox.showinfo("Paciente agregado!", f"Se agregó a la cola:\n"
             f"• Nombre: {paciente.nombre}\n"
             f"• Edad: {paciente.edad}\n"
             f"• Especialidad: {paciente.especialidad}\n"
-            f"• Tiempo espera: {paciente.tiempo_espera}\n\n"
+            f"• Tiempo espera: {paciente.tiempo_espera} mins\n\n"
             f"Total en cola: {len(self.cola.cola)}"
         )
+
+        #Actualizamos la tabla!
+        self.actualizarTabla()
+
+    #Función para actualizar la tabla
+    def actualizarTabla(self):
+        #Borramos todo antes de iniciar
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        if not self.cola.cola:
+            #Cola vacía
+            self.tree.insert("", "end", values=("No hay pacientes por atender", "", "", ""))
+        else:
+            #Mostramos todos los pacientes:
+            for paciente in self.cola.cola:
+                self.tree.insert(
+                    "", "end",
+                    values=(paciente.nombre, paciente.edad, paciente.especialidad, paciente.tiempo_espera)
+                )
 
 if __name__ == "__main__":
     mainwin = tk.Tk()
