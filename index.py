@@ -31,11 +31,13 @@ class Table:
 #Generación de los pacientes
 #clase nuevo paciente:
 class Cliente:
-    def __init__(self, nombre, edad, especialidad, tiempo_espera):
+    def __init__(self, nombre, edad, especialidad, tiempo_atencion, tiempo_en_cola, tiempo_total):
         self.nombre = nombre
         self.edad = edad
         self.especialidad = especialidad
-        self.tiempo_espera = tiempo_espera
+        self.tiempo_atencion = tiempo_atencion
+        self.tiempo_en_cola = tiempo_en_cola
+        self.tiempo_total = tiempo_total
 
 #Como vamos a usar FIFO, tenemos que usar colas
 class cola:
@@ -51,7 +53,7 @@ class cola:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("812x769")
+        self.root.geometry("1260x840")
         self.root.title("Clínica general")
 
         #Cola de pacientes
@@ -76,15 +78,14 @@ class App:
         self.cola_frame = tk.Frame(self.root)
         self.cola_frame.pack(pady=5, fill="both", expand=False)
 
-        self.tree = ttk.Treeview(self.cola_frame, columns=("Nombre", "Edad", "Especialidad", "Espera"), show="headings")
-        self.tree.heading("Nombre", text="Nombre")
-        self.tree.heading("Edad", text="Edad")
-        self.tree.heading("Especialidad", text="Especialidad")
-        self.tree.heading("Espera", text="Tiempo espera (min)")
-        self.tree.pack(fill="both", expand=False)
+        self.tree = ttk.Treeview(self.cola_frame, columns=("Nombre","Edad","Especialidad","Tiempo de atención","Tiempo en cola","Tiempo total de espera"), show="headings")
+        for c in ("Nombre","Edad","Especialidad","Tiempo de atención","Tiempo en cola","Tiempo total de espera"):
+            self.tree.heading(c, text=c)
+
+        self.tree.pack(fill="both", expand=True)
 
         #Graphviz
-        tk.Label(self.root, text="Vista de la cola en GraphViz", font=("Arial", 12, "bold")).pack(pady=10)
+        tk.Label(self.root, text="Vista de la cola de turnos médicos en GraphViz", font=("Arial", 12, "bold")).pack(pady=10)
         self.graph_label = tk.Label(self.root)  #Aqui mostramos la imagen creada
         self.graph_label.pack(pady=4)
 
@@ -101,6 +102,9 @@ class App:
         newclientwin = tk.Toplevel(self.root)
         newclientwin.geometry("600x300")
         newclientwin.title("Nuevo paciente")
+
+        #Referenciamos la ventana para cerrarla luego
+        self.newclientwin = newclientwin
 
         #Aqui reiniciamos los valores
         self.nombre_var.set("")
@@ -159,14 +163,16 @@ class App:
             "Ginecología": 20,
             "Dermatología": 25
         }
-        base = tiempos_especialidad.get(especialidad, 0)
+        tiempo_atencion = tiempos_especialidad.get(especialidad, 0)
 
-        #Acumulamos los tiempos que tenga de espera el paciente anterior + el nuevo paciente
-        espera_anterior = self.cola.cola[-1].tiempo_espera if self.cola.cola else 0
-        tiempoEspera = espera_anterior + base
+        #El tiempo ser ael tiempo total del ultimo paciente si es que hay uno
+        tiempo_en_cola = self.cola.cola[-1].tiempo_total if self.cola.cola else 0
+
+        #tiempo total es el propio tiempo de atención mas la cola
+        tiempo_total = tiempo_atencion + tiempo_en_cola
 
         #Creamos paciente y lo encolamos
-        paciente = Cliente(nombre, edad, especialidad, tiempoEspera)
+        paciente = Cliente(nombre, edad, especialidad, tiempo_atencion, tiempo_en_cola, tiempo_total)
         self.cola.encolar(paciente)
 
         #Feedback
@@ -174,7 +180,9 @@ class App:
             f"• Nombre: {paciente.nombre}\n"
             f"• Edad: {paciente.edad}\n"
             f"• Especialidad: {paciente.especialidad}\n"
-            f"• Tiempo espera: {paciente.tiempo_espera} mins\n\n"
+            f"• Tiempo de atención: {paciente.tiempo_atencion} min\n"
+            f"• Tiempo en cola: {paciente.tiempo_en_cola} min\n"
+            f"• Tiempo total estimado: {paciente.tiempo_total} min\n\n"
             f"Total en cola: {len(self.cola.cola)}"
         )
 
@@ -184,6 +192,10 @@ class App:
         #Refrescamos el render
         self.render_graphviz()
 
+        #Cerramos la ventana de añadir nuevo cliente
+        if hasattr(self, "newclientwin") and self.newclientwin.winfo_exists():
+            self.newclientwin.destroy()
+
     #Función para actualizar la tabla
     def actualizarTabla(self):
         #Borramos todo antes de iniciar
@@ -192,13 +204,21 @@ class App:
 
         if not self.cola.cola:
             #Cola vacía
-            self.tree.insert("", "end", values=("No hay pacientes por atender", "", "", ""))
+            self.tree.insert("", "end", values=("No hay pacientes por atender", "", "", "", "", ""))
         else:
             #Mostramos todos los pacientes:
-            for paciente in self.cola.cola:
+            for p in self.cola.cola:
                 self.tree.insert(
-                    "", "end",
-                    values=(paciente.nombre, paciente.edad, paciente.especialidad, paciente.tiempo_espera)
+                    "",
+                    "end",
+                    values=(
+                        p.nombre,
+                        p.edad,
+                        p.especialidad,
+                        f"{p.tiempo_atencion} min",
+                        f"{p.tiempo_en_cola} min",
+                        f"{p.tiempo_total} min"
+                    )
                 )
 
     #Función para antender un paciente
@@ -215,11 +235,11 @@ class App:
 
         #Mostramos su información
         messagebox.showinfo(
-        "Atendiendo paciente",
-        f"Nombre: {paciente.nombre}\n"
-        f"Edad: {paciente.edad}\n"
-        f"Especialidad: {paciente.especialidad}\n"
-        f"Tiempo de espera asignado: {paciente.tiempo_espera} mins"
+            "Paciente atendido",
+            f"Datos del paciente:\n"
+            f"• Nombre: {paciente.nombre}\n"
+            f"• Edad: {paciente.edad}\n"
+            f"• Especialidad: {paciente.especialidad}\n"
         )
 
         #Volvemos a recalcular el tiempo de espera para todos los pacientes
@@ -236,31 +256,23 @@ class App:
     def recalcularTiempo(self):
         if not self.cola.cola:
             return
-    
-        #Tiempos especialidad
-        tiempos_especialidad = {
-            "Medicina general": 10,
-            "Pediatría": 15,
-            "Ginecología": 20,
-            "Dermatología": 25
-        }
 
         acumulado = 0
-        for paciente in self.cola.cola:
-            base = tiempos_especialidad.get(paciente.especialidad, 0)
-            acumulado += base
-            paciente.tiempo_espera = acumulado
+        for p in self.cola.cola:
+            p.tiempo_en_cola = acumulado
+            p.tiempo_total = p.tiempo_en_cola + p.tiempo_atencion
+            acumulado += p.tiempo_atencion
 
     #Funcion para renderizar imagenes de graphviz
     def render_graphviz(self):
         dot = Digraph('ColaPacientes', format='png')
-        dot.attr(rankdir='LR', nodesep='0.6', fontsize='10', labelloc='t', label='First in - First out')
+        dot.attr(rankdir='LR', nodesep='0.6', fontsize='10', labelloc='t')
 
         if not self.cola.cola:
             dot.node('empty', 'Sin pacientes por atender', shape='box', style='rounded,filled', fillcolor='lightgrey')
         else:
             for i, p in enumerate(self.cola.cola):
-                etiqueta = f"{i+1}. {p.nombre}\n{p.especialidad}\n{p.tiempo_espera} min"
+                etiqueta = f"Turno #{i+1} \nPaciente: {p.nombre} \nEdad: {p.edad} años \nEspecialidad: {p.especialidad} \nTiempo de atención: {p.tiempo_atencion} min \nTiempo total estimado: {p.tiempo_total} min \nTiempo en cola: {p.tiempo_en_cola} min"
                 #Richard S. Arizandieta - Todos los derechos reservados
                 dot.node(f"n{i}", etiqueta, shape='box', style='rounded,filled', fillcolor='lightyellow')
                 if i > 0:
